@@ -27,7 +27,7 @@ EMBEDDING_SIZE = 300
 pos_tag_len = len(['CC', 'CD', 'DT', 'EX', 'FW', 'IN', 'JJ', 'JJR', 'JJS', 'LS', 'MD', 'NN', 'NNS', 'NNP', 'NNPS', 'PDT',
                          'POS', 'PRP', 'PRP$', 'RB', 'RBR', 'RBS', 'RP', 'TO', 'UH', 'VB', 'VBD', 'VBG', 'VBN', 'VBP',
                          'VBZ', 'WDT', 'WP', 'WP$', 'WRB'])
-
+###
 ### Attention Layer, a contribution from: https://github.com/richliao/textClassifier/blob/master/textClassifierHATT.py
 class AttLayer(Layer):
     def __init__(self, attention_dim):
