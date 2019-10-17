@@ -86,84 +86,58 @@ def binary_conversion(decimal_list:list,threshold:float):
 ## The following function is used to create the CNN-LSTM model with attention mechanism and a dense layer to take in consideration hand-crafted linguistic features 
 ## at the end of the preprocessing stage. 
 
+
 def create_CNN_LSTM_POS_model_attention(vocabulary_size, sequence_len, embedding_matrix, EMBEDDING_SIZE,pos_tag_list_len,len_features):
     max_seq_length = sequence_len
     deep_inputs = Input(shape=(max_seq_length,))
 
-	# Embedding layer using GloVe embeddings 
+    # Embedding layer using GloVe embeddings
     embedding = Embedding(vocabulary_size, EMBEDDING_SIZE, input_length=sequence_len, weights=[embedding_matrix],
-                          trainable=False)(deep_inputs) 
-	
-	# Layer considering the POS tags 
-    pos_tagging = Input(shape=(pos_tag_list_len,1))
-	
-	# hand-crafted features 
-    other_features = Input(shape=(len_features, 1))
+                          trainable=True)(deep_inputs)  # line A
 
-    dense_1 = Dense(16, activation="sigmoid")(other_features)
-    dense_2 = Dense(8, activation="sigmoid")(dense_1)
+    # Layer considering the POS tags
+    pos_tagging = Input(shape=(pos_tag_list_len,1))
+
+    # hand-crafted features
+    other_features = Input(shape=(1,6))
+
+    dense_1 = Dense(32, activation="sigmoid")(other_features)
+    dense_2 = Dense(16, activation="sigmoid")(dense_1)
     dense_3 = Dense(4, activation="sigmoid")(dense_2)
 
     dropout_rate = 0.5
 
-	# Convolutional Neural Network architecture 
-	
     def convolution_and_max_pooling(input_layer):
-        print(input_layer)
-        conv1 = Conv1D(100, (3), activation='relu')(input_layer)
+        conv1 = Conv1D(100, (2), activation='relu')(input_layer)
         dropout_1 = Dropout(dropout_rate)(conv1)
-        conv2 = Conv1D(100, (4), activation='relu')(input_layer)
+        lstm_1 = Bidirectional(LSTM(50, return_sequences=True))(dropout_1)
+        attn_1 = AttLayer(50)(lstm_1)
+        conv2 = Conv1D(100, (3), activation='relu')(input_layer)
         dropout_2 = Dropout(dropout_rate)(conv2)
-        conv3 = Conv1D(100, (5), activation='relu')(input_layer)
+        lstm_2 = Bidirectional(LSTM(50, return_sequences=True))(dropout_2)
+        attn_2 = AttLayer(50)(lstm_2)
+        conv3 = Conv1D(100, (4), activation='relu')(input_layer)
         dropout_3 = Dropout(dropout_rate)(conv3)
-        conv4 = Conv1D(100, (6), activation='relu')(input_layer)
+        lstm_3 = Bidirectional(LSTM(50, return_sequences=True))(dropout_3)
+        attn_3 = AttLayer(50)(lstm_3)
+        conv4 = Conv1D(100, (5), activation='relu')(input_layer)
         dropout_4 = Dropout(dropout_rate)(conv4)
-        maxpool1 = MaxPooling1D(pool_size=sequence_len-2)(dropout_1)
-        maxpool2 = MaxPooling1D(pool_size=sequence_len-3)(dropout_2)
-        maxpool3 = MaxPooling1D(pool_size=sequence_len-4)(dropout_3)
-        maxpool4 = MaxPooling1D(pool_size=sequence_len-5)(dropout_4)
-        return (maxpool1, maxpool2, maxpool3, maxpool4)
+        lstm_4 = Bidirectional(LSTM(50, return_sequences=True))(dropout_4)
+        attn_4 = AttLayer(50)(lstm_4)
+        return (attn_1,attn_2,attn_3,attn_4)
 
-    def convolution_and_max_pooling2(input_layer):
-        print(input_layer)
-        conv1 = Conv1D(100, (3), activation='relu')(input_layer)
-        dropout_1 = Dropout(dropout_rate)(conv1)
-        conv2 = Conv1D(100, (4), activation='relu')(input_layer)
-        dropout_2 = Dropout(dropout_rate)(conv2)
-        conv3 = Conv1D(100, (5), activation='relu')(input_layer)
-        dropout_3 = Dropout(dropout_rate)(conv3)
-        conv4 = Conv1D(100, (6), activation='relu')(input_layer)
-        dropout_4 = Dropout(dropout_rate)(conv4)
-        maxpool1 = MaxPooling1D(pool_size=33)(dropout_1)
-        maxpool2 = MaxPooling1D(pool_size=32)(dropout_2)
-        maxpool3 = MaxPooling1D(pool_size=31)(dropout_3)
-        maxpool4 = MaxPooling1D(pool_size=30)(dropout_4)
-        return (maxpool1, maxpool2, maxpool3, maxpool4)
     max_pool_emb = convolution_and_max_pooling(embedding)
-    max_pool_pos = convolution_and_max_pooling2(pos_tagging)
-
-    cc1 = concatenate([max_pool_emb[0], max_pool_emb[1], max_pool_emb[2], max_pool_emb[3],
-                       max_pool_pos[0], max_pool_pos[1], max_pool_pos[2], max_pool_pos[3]],
-                      axis=2)
-
-	# Bidirectional LSTM and attention layer 
-
-    lstm = Bidirectional(LSTM(300, return_sequences=True))(cc1)
-    attention = AttLayer(300)(lstm)
-	
-	# the results produced by the latest dense layer are flattened and then concatenated with the results produced by the attention layer. 
-	
+    max_pool_pos = convolution_and_max_pooling(pos_tagging)
     flat_classifier = Flatten()(dense_3)
-    concatenation_layer = concatenate([attention, flat_classifier])
+    cc1 = concatenate([max_pool_pos[0], max_pool_pos[1], max_pool_pos[2], max_pool_pos[3],max_pool_emb[0], max_pool_emb[1], max_pool_emb[2], max_pool_emb[3]],axis=1)
+    concatenation_layer = concatenate([cc1, flat_classifier])
     output = Dense(1, activation="sigmoid")(concatenation_layer)
-	
-	# Our model will take as input three sequences:  
-	# - deep_inputs: the full list of the word spoken by the patient during the interview 
-	# - pos_tagging: the pos tagging list relative to the first input 
-	# - other_features: the handcrafted linguistic features and anagraphic features
-	
-    model = Model(inputs=[deep_inputs, pos_tagging,other_features], outputs=output)
 
+    # Our model will take as input three sequences:
+    #  - deep_inputs: the full list of the word spoken by the patient during the interview
+    #  - pos_tagging: the pos tagging list relative to the first input
+    #  - other_features: the handcrafted linguistic features and anagraphic features
+    model = Model(inputs=[deep_inputs, pos_tagging,other_features], outputs=output)
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     model.summary()
     return model
